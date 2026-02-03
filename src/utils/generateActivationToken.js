@@ -1,3 +1,4 @@
+// generateActivationToken.js
 import jwt from "jsonwebtoken";
 
 export const generateActivationToken = (userId) => {

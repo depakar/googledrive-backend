@@ -26,19 +26,14 @@ const userSchema = new mongoose.Schema(
       required: true,
     },
 
+    // ✅ FIXED: used everywhere now
     isActive: {
       type: Boolean,
       default: false,
     },
 
-    // 🔐 Forgot password fields
-    resetPasswordToken: {
-      type: String,
-    },
-
-    resetPasswordExpires: {
-      type: Date,
-    },
+    resetPasswordToken: String,
+    resetPasswordExpires: Date,
   },
   { timestamps: true }
 );

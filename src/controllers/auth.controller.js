@@ -1,27 +1,30 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
-import User from "../models/User.js";
-import { generateActivationToken } from "../utils/generateToken.js";
-import { sendEmail } from "../utils/sendEmail.js";
 
-/* ============================
-   REGISTER USER
-============================ */
+import User from "../models/User.js";
+import sendEmail from "../utils/sendEmail.js";
+import { generateActivationToken } from "../utils/generateActivationToken.js";
+
+
+/* =========================
+   REGISTER
+========================= */
 export const registerUser = async (req, res) => {
   try {
     const { firstName, lastName, email, password } = req.body;
 
-    // 1️⃣ Check existing user
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({ message: "User already exists" });
+    if (!firstName || !lastName || !email || !password) {
+      return res.status(400).json({ message: "All fields are required" });
     }
 
-    // 2️⃣ Hash password
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(409).json({ message: "User already exists" });
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // 3️⃣ Create inactive user
     const user = await User.create({
       firstName,
       lastName,
@@ -30,118 +33,101 @@ export const registerUser = async (req, res) => {
       isActive: false,
     });
 
-    // 4️⃣ Generate activation token
     const token = generateActivationToken(user._id);
-
-    // 5️⃣ FRONTEND activation link
     const activationLink = `${process.env.CLIENT_URL}/activate/${token}`;
 
-    // 6️⃣ Send activation email
-    await sendEmail({
+    // ✅ NON-BLOCKING EMAIL
+    sendEmail({
       to: user.email,
       subject: "Activate your account",
-      html: `
-        <h2>Welcome to Google Drive Clone</h2>
-        <p>Please click the link below to activate your account:</p>
-        <a href="${activationLink}">${activationLink}</a>
-      `,
+      html: `<a href="${activationLink}">${activationLink}</a>`,
     });
 
     res.status(201).json({
-      message: "Registration successful. Check your email to activate account.",
+      message: "Registration successful. Check your email.",
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("REGISTER ERROR:", error);
+    res.status(500).json({ message: "Registration failed" });
   }
 };
 
-/* ============================
+/* =========================
    VERIFY ACCOUNT
-============================ */
+========================= */
 export const verifyAccount = async (req, res) => {
   try {
-    const { token } = req.params;
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(req.params.token, process.env.JWT_SECRET);
 
     const user = await User.findById(decoded.userId);
-    if (!user) {
-      return res.status(400).json({ message: "Invalid token" });
+    if (!user) return res.status(400).json({ message: "Invalid token" });
+
+    if (user.isActive) {
+      return res.json({ message: "Account already verified" });
     }
 
     user.isActive = true;
     await user.save();
 
     res.json({ message: "Account activated successfully" });
-  } catch (error) {
-    res.status(400).json({ message: "Invalid or expired token" });
+  } catch {
+    res.status(400).json({ message: "Invalid or expired link" });
   }
 };
 
-/* ============================
-   LOGIN USER
-============================ */
+/* =========================
+   LOGIN
+========================= */
 export const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // 1️⃣ Check user
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(400).json({ message: "Invalid email or password" });
+      return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    // 2️⃣ Check activation
     if (!user.isActive) {
-      return res.status(403).json({
-        message: "Please verify your email before logging in",
-      });
+      return res.status(403).json({ message: "Verify email first" });
     }
 
-    // 3️⃣ Compare password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(400).json({ message: "Invalid email or password" });
+      return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    // 4️⃣ Generate JWT
     const token = jwt.sign(
       { userId: user._id },
       process.env.JWT_SECRET,
-      { expiresIn: "1d" }
+      { expiresIn: "7d" }
     );
 
     res.json({
-      message: "Login successful",
       token,
       user: {
         id: user._id,
+        email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
-        email: user.email,
       },
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Login failed" });
   }
 };
 
-/* ============================
+/* =========================
    FORGOT PASSWORD
-============================ */
+========================= */
 export const forgotPassword = async (req, res) => {
   try {
-    const { email } = req.body;
-
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email: req.body.email });
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res.json({ message: "If email exists, link sent" });
     }
 
-    // 1️⃣ Generate token
     const resetToken = crypto.randomBytes(32).toString("hex");
 
-    // 2️⃣ Hash token & expiry
     user.resetPasswordToken = crypto
       .createHash("sha256")
       .update(resetToken)
@@ -150,39 +136,28 @@ export const forgotPassword = async (req, res) => {
     user.resetPasswordExpires = Date.now() + 15 * 60 * 1000;
     await user.save();
 
-    // 3️⃣ FRONTEND reset link
-    const resetLink = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
+    const link = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
 
-    // 4️⃣ Send email
-    await sendEmail({
+    sendEmail({
       to: user.email,
-      subject: "Reset your password",
-      html: `
-        <p>Click the link below to reset your password:</p>
-        <a href="${resetLink}">${resetLink}</a>
-        <p>This link expires in 15 minutes.</p>
-      `,
+      subject: "Reset Password",
+      html: `<a href="${link}">${link}</a>`,
     });
 
-    res.json({
-      message: "Password reset link sent to your email",
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.json({ message: "Reset link sent" });
+  } catch {
+    res.status(500).json({ message: "Failed to send link" });
   }
 };
 
-/* ============================
+/* =========================
    RESET PASSWORD
-============================ */
+========================= */
 export const resetPassword = async (req, res) => {
   try {
-    const { token } = req.params;
-    const { password } = req.body;
-
     const hashedToken = crypto
       .createHash("sha256")
-      .update(token)
+      .update(req.params.token)
       .digest("hex");
 
     const user = await User.findOne({
@@ -191,19 +166,17 @@ export const resetPassword = async (req, res) => {
     });
 
     if (!user) {
-      return res
-        .status(400)
-        .json({ message: "Invalid or expired reset token" });
+      return res.status(400).json({ message: "Invalid token" });
     }
 
-    user.password = await bcrypt.hash(password, 10);
+    user.password = await bcrypt.hash(req.body.password, 10);
     user.resetPasswordToken = undefined;
     user.resetPasswordExpires = undefined;
 
     await user.save();
 
     res.json({ message: "Password reset successful" });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+  } catch {
+    res.status(500).json({ message: "Reset failed" });
   }
 };
