@@ -39,8 +39,6 @@ app.use(
   })
 );
 
-// 🔥 Explicit preflight support
-app.options("*", cors());
 
 /* ===============================
    ROUTES
