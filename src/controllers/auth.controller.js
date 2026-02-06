@@ -67,38 +67,40 @@ export const registerUser = async (req, res) => {
    VERIFY ACCOUNT
 ================================ */
 export const verifyAccount = async (req, res) => {
+  console.log("🔥 VERIFY ROUTE HIT");
+
   try {
     const { token } = req.params;
+    console.log("🔑 TOKEN:", token);
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log("🧩 DECODED:", decoded);
 
     const user = await User.findById(decoded.userId);
+    console.log("👤 USER FOUND:", user?.email, user?.isActive);
 
     if (!user) {
+      console.log("❌ USER NOT FOUND");
       return res.redirect(
         `${process.env.CLIENT_URL}/login?error=user-not-found`
       );
     }
 
-    // 🔥 FORCE ACTIVATE (even if already active)
     user.isActive = true;
     await user.save();
 
-    console.log("✅ User activated:", user.email);
+    console.log("✅ USER ACTIVATED IN DB");
 
     return res.redirect(
       `${process.env.CLIENT_URL}/login?success=activated`
     );
   } catch (err) {
-    console.error("VERIFY ERROR:", err.message);
-
+    console.error("❌ VERIFY ERROR:", err.message);
     return res.redirect(
       `${process.env.CLIENT_URL}/login?error=invalid-link`
     );
   }
 };
-
-
 
 
 /* ===============================
