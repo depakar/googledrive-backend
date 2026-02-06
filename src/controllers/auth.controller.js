@@ -71,6 +71,8 @@ export const verifyAccount = async (req, res) => {
     const { token } = req.params;
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log("Decoded token:", decoded); // 🔥 ADD THIS
+
     const user = await User.findById(decoded.userId);
 
     if (!user) {
@@ -79,24 +81,23 @@ export const verifyAccount = async (req, res) => {
       );
     }
 
-    if (user.isActive) {
-      return res.redirect(
-        `${process.env.CLIENT_URL}/login?info=already-activated`
-      );
+    if (!user.isActive) {
+      user.isActive = true;
+      await user.save();
     }
-
-    user.isActive = true;
-    await user.save();
 
     return res.redirect(
       `${process.env.CLIENT_URL}/login?success=activated`
     );
-  } catch (error) {
+  } catch (err) {
+    console.error("VERIFY ERROR:", err);
     return res.redirect(
       `${process.env.CLIENT_URL}/login?error=invalid-link`
     );
   }
 };
+
+
 
 
 /* ===============================
