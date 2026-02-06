@@ -76,9 +76,9 @@ export const verifyAccount = async (req, res) => {
     });
 
     if (!user) {
-      return res.redirect(
-        `${process.env.CLIENT_URL}/login?error=invalid-link`
-      );
+      return res.status(400).json({
+        message: "Invalid or expired activation link",
+      });
     }
 
     user.isActive = true;
@@ -86,14 +86,14 @@ export const verifyAccount = async (req, res) => {
     user.activationExpires = undefined;
     await user.save();
 
-    return res.redirect(
-      `${process.env.CLIENT_URL}/login?success=activated`
-    );
+    return res.json({
+      message: "Account activated successfully",
+    });
   } catch (error) {
-    console.error("VERIFY ERROR:", error.message);
-    return res.redirect(
-      `${process.env.CLIENT_URL}/login?error=invalid-link`
-    );
+    console.error("VERIFY ERROR:", error);
+    return res.status(500).json({
+      message: "Activation failed",
+    });
   }
 };
 
