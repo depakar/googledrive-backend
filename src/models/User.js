@@ -26,11 +26,14 @@ const userSchema = new mongoose.Schema(
       required: true,
     },
 
-    // ✅ FIXED: used everywhere now
     isActive: {
       type: Boolean,
       default: false,
     },
+
+    // ✅ NEW (activation via DB, NOT JWT)
+    activationToken: String,
+    activationExpires: Date,
 
     resetPasswordToken: String,
     resetPasswordExpires: Date,

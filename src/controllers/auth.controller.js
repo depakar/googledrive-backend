@@ -1,8 +1,9 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 import User from "../models/User.js";
 import { sendEmail } from "../utils/sendEmail.js";
-import { generateActivationToken } from "../utils/generateActivationToken.js";
+
 
 /* ===============================
    REGISTER USER
@@ -22,18 +23,22 @@ export const registerUser = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // ✅ DB-based activation token
+    const activationToken = crypto.randomBytes(32).toString("hex");
+
     const user = await User.create({
       firstName,
       lastName,
       email,
       password: hashedPassword,
       isActive: false,
+      activationToken,
+      activationExpires: Date.now() + 15 * 60 * 1000, // 15 minutes
     });
 
-    const activationToken = generateActivationToken(user._id);
-    const activationUrl = `${process.env.CLIENT_URL}/verify/${activationToken}`;
+    const activationUrl =
+      `${process.env.CLIENT_URL}/verify/${activationToken}`;
 
-    // 🔥 Email should NEVER crash registration
     try {
       await sendEmail({
         to: email,
@@ -54,11 +59,6 @@ export const registerUser = async (req, res) => {
     });
   } catch (error) {
     console.error("REGISTER ERROR:", error);
-
-    if (error.code === 11000) {
-      return res.status(409).json({ message: "User already exists" });
-    }
-
     return res.status(500).json({ message: "Registration failed" });
   }
 };
@@ -67,35 +67,30 @@ export const registerUser = async (req, res) => {
    VERIFY ACCOUNT
 ================================ */
 export const verifyAccount = async (req, res) => {
-  console.log("🔥 VERIFY ROUTE HIT");
-
   try {
     const { token } = req.params;
-    console.log("🔑 TOKEN:", token);
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    console.log("🧩 DECODED:", decoded);
-
-    const user = await User.findById(decoded.userId);
-    console.log("👤 USER FOUND:", user?.email, user?.isActive);
+    const user = await User.findOne({
+      activationToken: token,
+      activationExpires: { $gt: Date.now() },
+    });
 
     if (!user) {
-      console.log("❌ USER NOT FOUND");
       return res.redirect(
-        `${process.env.CLIENT_URL}/login?error=user-not-found`
+        `${process.env.CLIENT_URL}/login?error=invalid-link`
       );
     }
 
     user.isActive = true;
+    user.activationToken = undefined;
+    user.activationExpires = undefined;
     await user.save();
-
-    console.log("✅ USER ACTIVATED IN DB");
 
     return res.redirect(
       `${process.env.CLIENT_URL}/login?success=activated`
     );
-  } catch (err) {
-    console.error("❌ VERIFY ERROR:", err.message);
+  } catch (error) {
+    console.error("VERIFY ERROR:", error.message);
     return res.redirect(
       `${process.env.CLIENT_URL}/login?error=invalid-link`
     );
