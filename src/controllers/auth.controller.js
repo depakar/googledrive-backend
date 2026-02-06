@@ -74,28 +74,30 @@ export const verifyAccount = async (req, res) => {
     const user = await User.findById(decoded.userId);
 
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res.redirect(
+        `${process.env.CLIENT_URL}/login?error=user-not-found`
+      );
     }
 
     if (user.isActive) {
-      return res.status(400).json({ message: "Account already activated" });
+      return res.redirect(
+        `${process.env.CLIENT_URL}/login?info=already-activated`
+      );
     }
 
     user.isActive = true;
     await user.save();
 
-    return res.json({
-      message: "Account activated successfully! You can now login.",
-    });
+    return res.redirect(
+      `${process.env.CLIENT_URL}/login?success=activated`
+    );
   } catch (error) {
-    if (error.name === "TokenExpiredError") {
-      return res.status(400).json({ message: "Activation link has expired" });
-    }
-
-    console.error("VERIFY ERROR:", error);
-    return res.status(400).json({ message: "Invalid activation link" });
+    return res.redirect(
+      `${process.env.CLIENT_URL}/login?error=invalid-link`
+    );
   }
 };
+
 
 /* ===============================
    LOGIN USER
