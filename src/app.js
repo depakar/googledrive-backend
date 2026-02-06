@@ -7,8 +7,11 @@ import fileRoutes from "./routes/file.routes.js";
 
 const app = express();
 
-app.use(express.json());
+// ✅ REQUIRED: Proper body parsers for Render
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true }));
 
+// ✅ CORS (frontend + Postman friendly)
 app.use(
   cors({
     origin: process.env.CLIENT_URL,
@@ -16,6 +19,7 @@ app.use(
   })
 );
 
+// ✅ Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/folders", folderRoutes);
 app.use("/api/files", fileRoutes);

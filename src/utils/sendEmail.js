@@ -1,19 +1,12 @@
-import transporter from "../config/email.js";
+import { Resend } from "resend";
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 export const sendEmail = async ({ to, subject, html }) => {
-  try {
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to,
-      subject,
-      html,
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    console.log("✅ Email sent:", info.messageId);
-    return { success: true, messageId: info.messageId };
-  } catch (error) {
-    console.error("❌ Email sending failed:", error.message);
-    throw new Error("Failed to send email");
-  }
+  await resend.emails.send({
+    from: "Google Drive <onboarding@resend.dev>",
+    to,
+    subject,
+    html,
+  });
 };
