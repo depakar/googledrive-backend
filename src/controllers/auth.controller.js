@@ -39,8 +39,8 @@ export const registerUser = async (req, res) => {
     // Generate activation token
     const activationToken = generateActivationToken(user._id);
 
-    // ✅ FIXED: Changed URL to /activate to match frontend route
-    const activationUrl = `${process.env.CLIENT_URL}/activate/${activationToken}`;
+    // Send activation email
+    const activationUrl = `${process.env.CLIENT_URL}/verify/${activationToken}`;
 
     await sendEmail({
       to: email,
