@@ -80,16 +80,18 @@ export const verifyAccount = async (req, res) => {
       );
     }
 
-    // 🔥 FORCE ACTIVATE
-    if (!user.isActive) {
-      user.isActive = true;
-      await user.save();
-    }
+    // 🔥 FORCE ACTIVATE (even if already active)
+    user.isActive = true;
+    await user.save();
+
+    console.log("✅ User activated:", user.email);
 
     return res.redirect(
       `${process.env.CLIENT_URL}/login?success=activated`
     );
-  } catch (error) {
+  } catch (err) {
+    console.error("VERIFY ERROR:", err.message);
+
     return res.redirect(
       `${process.env.CLIENT_URL}/login?error=invalid-link`
     );
